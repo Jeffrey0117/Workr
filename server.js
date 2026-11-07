@@ -8,7 +8,9 @@ const { startWorkers } = require('./src/workers');
 const queue = require('./src/queue');
 
 const PORT = process.env.PORT || 4002;
-const API_KEY = process.env.WORKR_API_KEY || 'dev-key';
+// Fail closed: with no key configured, nobody can authenticate (never a guessable default).
+const API_KEY = process.env.WORKR_API_KEY || require('crypto').randomBytes(32).toString('hex');
+if (!process.env.WORKR_API_KEY) console.warn('[workr] WORKR_API_KEY not set — all authenticated routes are locked');
 
 // HTTP Server
 const server = http.createServer((req, res) => {
@@ -22,10 +24,12 @@ const server = http.createServer((req, res) => {
     return res.end();
   }
 
-  // Auth check (except health, admin, events, docs, proxy)
+  // Auth check. Job submission and /proxy must NEVER be public: jobs run ffmpeg /
+  // headless Chrome / file writes on this machine, and /proxy can reach localhost
+  // and the LAN. Only read-only status pages stay open.
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  const publicPaths = ['/health', '/admin', '/admin/', '/docs', '/proxy', '/api/events', '/api/jobs', '/api/stats'];
-  const isPublic = publicPaths.some(p => url.pathname === p || url.pathname.startsWith('/api/jobs/'));
+  const publicPaths = ['/health', '/admin', '/admin/', '/docs', '/api/stats'];
+  const isPublic = req.method === 'GET' && publicPaths.includes(url.pathname);
 
   if (!isPublic) {
     const auth = req.headers.authorization;

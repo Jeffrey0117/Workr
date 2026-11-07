@@ -3,12 +3,14 @@
  * 從影片擷取縮圖
  */
 
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 
-const execAsync = promisify(exec);
+// execFile (no shell): payload values are passed as argv, never parsed by cmd.exe.
+const execFileAsync = promisify(execFile);
+const TIMESTAMP_RE = /^\d{1,2}(:\d{1,2}){0,2}(\.\d{1,3})?$/;
 
 // 嘗試載入 sharp
 let sharp = null;
@@ -48,10 +50,15 @@ async function process(job, onProgress) {
   const isWebp = outputPath.endsWith('.webp');
   const tempPath = isWebp ? outputPath.replace('.webp', '_temp.png') : outputPath;
 
-  const cmd = `ffmpeg -i "${videoPath}" -ss ${timestamp} -vframes 1 -vf "scale=${width}:-1" -y "${tempPath}"`;
+  const ts = String(timestamp);
+  const w = Number(width);
+  if (!TIMESTAMP_RE.test(ts)) throw new Error(`Invalid timestamp: ${ts}`);
+  if (!Number.isInteger(w) || w < 16 || w > 4096) throw new Error(`Invalid width: ${width}`);
 
   try {
-    await execAsync(cmd, { timeout: 30000, windowsHide: true });
+    await execFileAsync('ffmpeg', [
+      '-i', videoPath, '-ss', ts, '-vframes', '1', '-vf', `scale=${w}:-1`, '-y', tempPath,
+    ], { timeout: 30000, windowsHide: true });
     onProgress(70, 'Frame extracted');
   } catch (e) {
     throw new Error(`ffmpeg failed: ${e.message}`);
