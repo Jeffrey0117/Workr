@@ -38,8 +38,8 @@ src/workers/proxy.js   — Proxy worker
 | Method | Path | Purpose | Auth |
 |--------|------|---------|------|
 | POST | `/api/jobs` | Create job | Bearer |
-| GET | `/api/jobs` | List jobs (?status, ?type, ?limit) | Public |
-| GET | `/api/jobs/:id` | Get job details | Public |
+| GET | `/api/jobs` | List jobs (?status, ?type, ?limit) | Bearer |
+| GET | `/api/jobs/:id` | Get job details | Bearer |
 | DELETE | `/api/jobs/:id` | Cancel job | Bearer |
 | GET | `/api/events` | SSE stream | Bearer |
 | GET | `/api/stats` | Queue stats | Public |
@@ -59,10 +59,10 @@ src/workers/proxy.js   — Proxy worker
 ## Env
 
 - `PORT` (default: 4002)
-- `WORKR_API_KEY` (default: 'dev-key')
+- `WORKR_API_KEY` (required; unset = random key, everything except /health /admin /docs /api/stats locked)
 
 ## CloudPipe
 
 - Manifest: `data/manifests/workr.json` (6 tools)
-- Auth: none
+- Auth: bearer `WORKR_API_KEY` (auth.json)
 - Entry: `server.js`

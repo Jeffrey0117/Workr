@@ -253,9 +253,38 @@ function getAdminHTML() {
   </div>
 
   <script>
+    // The job list needs WORKR_API_KEY. Kept in this browser only (localStorage);
+    // ?key=... in the URL seeds it once and is then stripped from the address bar.
+    var KEY_NAME = 'workr_api_key';
+    (function seedKey() {
+      var u = new URL(location.href);
+      var k = u.searchParams.get('key');
+      if (k) {
+        try { localStorage.setItem(KEY_NAME, k); } catch (e) {}
+        u.searchParams.delete('key');
+        history.replaceState(null, '', u.pathname + u.search);
+      }
+    })();
+    function getKey() {
+      try { return localStorage.getItem(KEY_NAME) || ''; } catch (e) { return ''; }
+    }
+    function askKey() {
+      var v = prompt('輸入 Workr API key（WORKR_API_KEY）');
+      if (v && v.trim()) {
+        try { localStorage.setItem(KEY_NAME, v.trim()); } catch (e) {}
+        return true;
+      }
+      return false;
+    }
+
     async function refresh() {
       try {
-        const res = await fetch('/api/jobs?limit=20');
+        const res = await fetch('/api/jobs?limit=20', { headers: { Authorization: 'Bearer ' + getKey() } });
+        if (res.status === 401) {
+          if (!refresh.asked) { refresh.asked = true; if (askKey()) return refresh(); }
+          document.getElementById('jobsList').innerHTML = '<tr><td colspan="5" style="color:#666;text-align:center;">需要 API key 才能看工作清單（重新整理頁面再輸入）</td></tr>';
+          return;
+        }
         const data = await res.json();
 
         // Update stats
@@ -287,13 +316,8 @@ function getAdminHTML() {
     // Initial load
     refresh();
 
-    // Auto refresh every 5s
+    // Auto refresh every 5s (SSE removed: EventSource can't send the auth header)
     setInterval(refresh, 5000);
-
-    // SSE for real-time updates
-    const es = new EventSource('/api/events');
-    es.onmessage = () => refresh();
-    es.onerror = () => console.log('SSE disconnected');
   </script>
 </body>
 </html>`;
